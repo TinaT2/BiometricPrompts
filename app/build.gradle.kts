@@ -56,6 +56,7 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.dataStore)
     implementation(libs.protobuf)
+    implementation(libs.coroutine)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -67,7 +68,17 @@ dependencies {
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:21.7"
+        artifact = "com.google.protobuf:protoc:3.18.0"
+    }
+
+    generateProtoTasks {
+        all().configureEach {
+            builtins {
+                create("java") {
+                    option("lite")
+                }
+            }
+        }
     }
 }
 java {
