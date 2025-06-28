@@ -18,18 +18,24 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.example.biometricpropmpts.ui.theme.BiometricPropmptsTheme
@@ -37,6 +43,8 @@ import dagger.hilt.android.AndroidEntryPoint
 import java.nio.charset.Charset
 import java.util.concurrent.Executor
 import javax.crypto.Cipher
+import javax.crypto.SecretKey
+import kotlin.reflect.KFunction1
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -62,6 +70,7 @@ class MainActivity : FragmentActivity() {
     private fun EnrollBiometric() {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             val viewModel: MainViewModel by viewModels()
+            val uiState = viewModel.uiState.collectAsState()
 
             enrollLauncher =
                 rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -74,22 +83,27 @@ class MainActivity : FragmentActivity() {
 
             LaunchedEffect(Unit) {
                 viewModel.generateSecretKey(keyGenParameterSpec = viewModel.keyGenParameterSpec)
-                checkBiometricAvailability(onSuccessful = { authenticate() })
+                checkBiometricAvailability(onSuccessful = { authenticate{
+                    viewModel.login()
+                } })
             }
 
-            EnrollBiometricButton(
-                modifier = Modifier.padding(innerPadding),
-                onClick = {
-                    val cipher = viewModel.getCipher()
-                    val secretKey = viewModel.getSecretKey()
-                    cipher.init(Cipher.ENCRYPT_MODE, secretKey)
-                    biometricPrompt?.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher))
-                }
+            LoginPage(
+                uiState.value,
+                innerPadding,
+                cipher = viewModel.getCipher(),
+                secretKey = viewModel.getSecretKey(),
+                biometricPrompt = biometricPrompt,
+                promptInfo = promptInfo,
+                updateUIState = viewModel::updateUiState
             )
+
+
         }
     }
 
-    private fun authenticate() {
+
+    private fun authenticate(onSucceed:()->Unit) {
         executor = ContextCompat.getMainExecutor(this)
         biometricPrompt = BiometricPrompt(
             this, executor,
@@ -156,6 +170,64 @@ class MainActivity : FragmentActivity() {
 
 
 @Composable
+fun LoginPage(
+    uiState: LoginUIState,
+    innerPadding: PaddingValues,
+    cipher: Cipher,
+    secretKey: SecretKey,
+    biometricPrompt: BiometricPrompt? = null,
+    promptInfo: BiometricPrompt.PromptInfo? = null,
+    updateUIState: KFunction1<LoginUIState.() -> LoginUIState, Unit>
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+    ) {
+        Column(modifier = Modifier.align(Alignment.Center)) {
+            OutlinedTextField(
+                label = {
+                    Text(stringResource(R.string.username))
+                },
+                value = uiState.username,
+                modifier = Modifier.padding(8.dp),
+                onValueChange = {
+                    updateUIState {
+                        copy(username = it)
+                    }
+                }
+            )
+            OutlinedTextField(
+                label = {
+                    Text(stringResource(R.string.password))
+                },
+                value = uiState.password,
+                modifier = Modifier.padding(8.dp),
+                onValueChange = {
+                    updateUIState {
+                        copy(password = it)
+                    }
+                }
+            )
+
+            EnrollBiometricButton(
+                modifier = Modifier,
+                onClick = {
+                    cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+                    promptInfo?.let {
+                        biometricPrompt?.authenticate(
+                            promptInfo,
+                            BiometricPrompt.CryptoObject(cipher)
+                        )
+                    }
+
+                }
+            )
+        }
+    }
+}
+
+@Composable
 fun EnrollBiometricButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(Modifier.fillMaxSize()) {
         Button(
@@ -176,8 +248,19 @@ fun EnrollBiometricButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
 
 @Preview(showBackground = true)
 @Composable
-fun GreetingPreview() {
-    BiometricPropmptsTheme {
-        EnrollBiometricButton(onClick = {})
-    }
+fun LoginPagePreview() {
+    LoginPage(
+        uiState = LoginUIState(),
+        innerPadding = PaddingValues(),
+        cipher = Cipher.getInstance(""),
+        secretKey = object : SecretKey {
+            override fun getAlgorithm(): String = ""
+
+            override fun getFormat(): String = ""
+
+            override fun getEncoded(): ByteArray = ByteArray(5)
+
+        }, updateUIState = ::print
+
+    )
 }

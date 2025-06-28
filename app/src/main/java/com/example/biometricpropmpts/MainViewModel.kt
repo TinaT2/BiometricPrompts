@@ -2,19 +2,38 @@ package com.example.biometricpropmpts
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.biometricpropmpts.data.repository.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.inject.Inject
 
+
+data class LoginUIState(
+    val username: TextFieldValue = TextFieldValue(""),
+    val password: TextFieldValue = TextFieldValue(""),
+)
+
 @HiltViewModel
-class MainViewModel @Inject constructor() : ViewModel() {
+class MainViewModel @Inject constructor(private val userPreferencesRepository: UserPreferencesRepository) :
+    ViewModel() {
     val KEY_PROVIDER = "AndroidKeyStore"
     val KEY_ALIAS = "biometricSecretKey"
     val pass = "ThisIsTheBioPass"
+    private val _uiState = MutableStateFlow(LoginUIState())
+    val uiState: StateFlow<LoginUIState> = _uiState.asStateFlow()
+
+
     val keyGenParameterSpec = KeyGenParameterSpec.Builder(
         KEY_ALIAS,
         KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
@@ -30,6 +49,7 @@ class MainViewModel @Inject constructor() : ViewModel() {
         )
         keyGenerator.init(keyGenParameterSpec)
         keyGenerator.generateKey()
+
     }
 
     fun getSecretKey(): SecretKey {
@@ -41,5 +61,19 @@ class MainViewModel @Inject constructor() : ViewModel() {
     fun getCipher(): Cipher {
         return Cipher.getInstance("${KeyProperties.KEY_ALGORITHM_AES}/${KeyProperties.BLOCK_MODE_CBC}/${KeyProperties.ENCRYPTION_PADDING_PKCS7}")
     }
+
+    fun login() {
+        viewModelScope.launch {
+            if (uiState.value.username.text.isNotEmpty() && uiState.value.password.text.isNotEmpty())
+                userPreferencesRepository.updateUserName(uiState.value.username.text, uiState.value.password.text)
+        }
+    }
+
+    fun updateUiState(update: LoginUIState.() -> LoginUIState) {
+        _uiState.update {currentState->
+            currentState.update()
+        }
+    }
+
 
 }
