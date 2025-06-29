@@ -4,6 +4,6 @@ option java_package = "com.example.biometricpropmpts";
 option java_multiple_files = true;
 
 message UserPreferences {
-  string username = 2;
-  string password = 3;
+  bytes username = 2;
+  bytes password = 3;
 }

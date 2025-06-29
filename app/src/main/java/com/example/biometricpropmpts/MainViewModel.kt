@@ -8,6 +8,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.biometricpropmpts.data.repository.UserPreferencesRepository
+import com.google.protobuf.ByteString
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -66,10 +67,9 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
         return Cipher.getInstance("${KeyProperties.KEY_ALGORITHM_AES}/${KeyProperties.BLOCK_MODE_CBC}/${KeyProperties.ENCRYPTION_PADDING_PKCS7}")
     }
 
-    fun login() {
+    fun login(encryptedUsername:ByteArray,encryptedPassword:ByteArray) {
         viewModelScope.launch {
-            if (uiState.value.username.text.isNotEmpty() && uiState.value.password.text.isNotEmpty())
-                userPreferencesRepository.updateUserName(uiState.value.username.text, uiState.value.password.text)
+                userPreferencesRepository.updateUserName(ByteString.copyFrom(encryptedUsername),ByteString.copyFrom(encryptedPassword))
         }
     }
 

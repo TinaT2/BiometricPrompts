@@ -28,7 +28,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,17 +40,12 @@ import androidx.fragment.app.FragmentActivity
 import com.example.biometricpropmpts.ui.theme.BiometricPropmptsTheme
 import dagger.hilt.android.AndroidEntryPoint
 import java.nio.charset.Charset
-import java.util.concurrent.Executor
 import javax.crypto.Cipher
-import javax.crypto.SecretKey
 import kotlin.reflect.KFunction1
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
     private lateinit var enrollLauncher: ActivityResultLauncher<Intent>
-    private var biometricPrompt: BiometricPrompt? = null
-    private lateinit var executor: Executor
-    private lateinit var promptInfo: BiometricPrompt.PromptInfo
     val TAG = "MyBiometricMain"
 
     @RequiresApi(Build.VERSION_CODES.R)
@@ -81,44 +75,43 @@ class MainActivity : FragmentActivity() {
                     }
                 }
 
-                LoginPage(
-                    uiState.value,
-                    innerPadding,
-                    updateUIState = viewModel::updateUiState,
-                    enrollClicked = {
-                        checkBiometricAvailability(onSuccessful = {
-
+            LoginPage(
+                uiState.value,
+                innerPadding,
+                updateUIState = viewModel::updateUiState,
+                enrollClicked = {
+                    checkBiometricAvailability(onSuccessful = {
+                        if (viewModel.getSecretKey() == null)
                             viewModel.generateSecretKey(keyGenParameterSpec = viewModel.keyGenParameterSpec)
-                            val cipher = viewModel.getCipher()
-                            val secretKey = viewModel.getSecretKey()
-                            secretKey?.let{
-                                cipher.init(Cipher.ENCRYPT_MODE, secretKey)
-                                authenticate{
-//todo                    viewModel.login()
-                                }
-                                promptInfo.let {
-                                    biometricPrompt?.authenticate(
-                                        promptInfo,
-                                        BiometricPrompt.CryptoObject(cipher)
-                                    )
-                                }
+                        val cipher = viewModel.getCipher()
+                        viewModel.getSecretKey()?.let { secretKey ->
+                            cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+                            authenticate(uiState.value, cipher) { encryptedPassword ->
+                                viewModel.login(
+                                    uiState.value.username.text.toByteArray(
+                                        Charset.defaultCharset()
+                                    ), encryptedPassword
+                                )
                             }
-                          })
+                        }
+                    })
 
 
-
-                    }
-                )
-
+                }
+            )
 
 
         }
     }
 
 
-    private fun authenticate(onSucceed:()->Unit) {
-        executor = ContextCompat.getMainExecutor(this)
-        biometricPrompt = BiometricPrompt(
+    private fun authenticate(
+        uiState: LoginUIState,
+        cipher: Cipher,
+        onSucceed: (encryptedPassword: ByteArray) -> Unit
+    ) {
+        val executor = ContextCompat.getMainExecutor(this)
+        val biometricPrompt = BiometricPrompt(
             this, executor,
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
@@ -131,10 +124,12 @@ class MainActivity : FragmentActivity() {
 
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
-                    val text = "I'mSecret"
-                    val encryptedInfo: ByteArray? =
-                        result.cryptoObject?.cipher?.doFinal(text.toByteArray(Charset.defaultCharset()))
-                    Log.d(TAG, encryptedInfo.contentToString())
+                    val encryptedPassword: ByteArray? =
+                        result.cryptoObject?.cipher?.doFinal(
+                            uiState.password.text.toByteArray(
+                                Charset.defaultCharset()
+                            )
+                        )
 
                     Toast.makeText(
                         applicationContext,
@@ -142,14 +137,21 @@ class MainActivity : FragmentActivity() {
                         Toast.LENGTH_SHORT
                     )
                         .show()
-                    onSucceed()
+
+                    if (encryptedPassword != null)
+                        onSucceed(encryptedPassword)
                 }
             })
-        promptInfo = BiometricPrompt.PromptInfo.Builder()
+        val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Biometric login for my app")
             .setSubtitle("Log in using your biometric credential")
             .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
             .build()
+
+        biometricPrompt.authenticate(
+            promptInfo,
+            BiometricPrompt.CryptoObject(cipher)
+        )
 
     }
 

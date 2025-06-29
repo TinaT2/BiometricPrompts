@@ -3,6 +3,7 @@ package com.example.biometricpropmpts.data.repository
 import android.util.Log
 import androidx.datastore.core.DataStore
 import com.example.biometricpropmpts.UserPreferences
+import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import java.io.IOException
@@ -20,7 +21,7 @@ class UserPreferencesRepository @Inject constructor(private val userPreferencesS
             }
         }
 
-    suspend fun updateUserName(username: String,password: String) {
+    suspend fun updateUserName(username: ByteString,password: ByteString) {
         userPreferencesStore.updateData { preferences ->
             preferences.toBuilder().setUsername(username).setPassword(password).build()
         }
