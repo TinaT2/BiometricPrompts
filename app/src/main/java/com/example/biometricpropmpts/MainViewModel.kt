@@ -1,7 +1,9 @@
 package com.example.biometricpropmpts
 
+import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import androidx.annotation.RequiresApi
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -34,6 +36,7 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
     val uiState: StateFlow<LoginUIState> = _uiState.asStateFlow()
 
 
+    @RequiresApi(Build.VERSION_CODES.R)
     val keyGenParameterSpec = KeyGenParameterSpec.Builder(
         KEY_ALIAS,
         KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
@@ -41,6 +44,7 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
         .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
         .setUserAuthenticationRequired(true)
         .setInvalidatedByBiometricEnrollment(true)
+        .setUserAuthenticationParameters(0,KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL)
         .build()
 
     fun generateSecretKey(keyGenParameterSpec: KeyGenParameterSpec) {
@@ -52,10 +56,10 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
 
     }
 
-    fun getSecretKey(): SecretKey {
+    fun getSecretKey(): SecretKey? {
         val keyStore = KeyStore.getInstance(KEY_PROVIDER)
         keyStore.load(null)
-        return keyStore.getKey(KEY_ALIAS, pass.toCharArray()) as SecretKey
+        return keyStore.getKey(KEY_ALIAS, pass.toCharArray()) as SecretKey?
     }
 
     fun getCipher(): Cipher {

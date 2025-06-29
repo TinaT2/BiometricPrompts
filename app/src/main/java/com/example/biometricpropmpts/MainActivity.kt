@@ -81,22 +81,35 @@ class MainActivity : FragmentActivity() {
                     }
                 }
 
-            LaunchedEffect(Unit) {
-                viewModel.generateSecretKey(keyGenParameterSpec = viewModel.keyGenParameterSpec)
-                checkBiometricAvailability(onSuccessful = { authenticate{
-                    viewModel.login()
-                } })
-            }
+                LoginPage(
+                    uiState.value,
+                    innerPadding,
+                    updateUIState = viewModel::updateUiState,
+                    enrollClicked = {
+                        checkBiometricAvailability(onSuccessful = {
 
-            LoginPage(
-                uiState.value,
-                innerPadding,
-                cipher = viewModel.getCipher(),
-                secretKey = viewModel.getSecretKey(),
-                biometricPrompt = biometricPrompt,
-                promptInfo = promptInfo,
-                updateUIState = viewModel::updateUiState
-            )
+                            viewModel.generateSecretKey(keyGenParameterSpec = viewModel.keyGenParameterSpec)
+                            val cipher = viewModel.getCipher()
+                            val secretKey = viewModel.getSecretKey()
+                            secretKey?.let{
+                                cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+                                authenticate{
+//todo                    viewModel.login()
+                                }
+                                promptInfo.let {
+                                    biometricPrompt?.authenticate(
+                                        promptInfo,
+                                        BiometricPrompt.CryptoObject(cipher)
+                                    )
+                                }
+                            }
+                          })
+
+
+
+                    }
+                )
+
 
 
         }
@@ -129,13 +142,15 @@ class MainActivity : FragmentActivity() {
                         Toast.LENGTH_SHORT
                     )
                         .show()
+                    onSucceed()
                 }
             })
         promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Biometric login for my app")
             .setSubtitle("Log in using your biometric credential")
-            .setNegativeButtonText("Use account password")
+            .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
             .build()
+
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
@@ -173,11 +188,8 @@ class MainActivity : FragmentActivity() {
 fun LoginPage(
     uiState: LoginUIState,
     innerPadding: PaddingValues,
-    cipher: Cipher,
-    secretKey: SecretKey,
-    biometricPrompt: BiometricPrompt? = null,
-    promptInfo: BiometricPrompt.PromptInfo? = null,
-    updateUIState: KFunction1<LoginUIState.() -> LoginUIState, Unit>
+    updateUIState: KFunction1<LoginUIState.() -> LoginUIState, Unit>,
+    enrollClicked: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -213,14 +225,7 @@ fun LoginPage(
             EnrollBiometricButton(
                 modifier = Modifier,
                 onClick = {
-                    cipher.init(Cipher.ENCRYPT_MODE, secretKey)
-                    promptInfo?.let {
-                        biometricPrompt?.authenticate(
-                            promptInfo,
-                            BiometricPrompt.CryptoObject(cipher)
-                        )
-                    }
-
+                    enrollClicked()
                 }
             )
         }
@@ -252,15 +257,7 @@ fun LoginPagePreview() {
     LoginPage(
         uiState = LoginUIState(),
         innerPadding = PaddingValues(),
-        cipher = Cipher.getInstance(""),
-        secretKey = object : SecretKey {
-            override fun getAlgorithm(): String = ""
-
-            override fun getFormat(): String = ""
-
-            override fun getEncoded(): ByteArray = ByteArray(5)
-
-        }, updateUIState = ::print
-
+        updateUIState = ::print,
+        enrollClicked = {}
     )
 }
