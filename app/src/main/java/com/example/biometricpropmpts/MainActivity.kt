@@ -17,13 +17,15 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -31,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -193,12 +196,25 @@ fun LoginPage(
     updateUIState: KFunction1<LoginUIState.() -> LoginUIState, Unit>,
     enrollClicked: () -> Unit
 ) {
+
+    val gradientBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primary,
+            MaterialTheme.colorScheme.inversePrimary,
+            MaterialTheme.colorScheme.primary
+        )
+    )
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(brush = gradientBrush)
             .padding(innerPadding)
     ) {
-        Column(modifier = Modifier.align(Alignment.Center)) {
+        Column(
+            modifier = Modifier
+                .wrapContentSize(Alignment.Center)
+                .align(Alignment.Center)
+        ) {
             OutlinedTextField(
                 label = {
                     Text(stringResource(R.string.username))
@@ -225,7 +241,7 @@ fun LoginPage(
             )
 
             EnrollBiometricButton(
-                modifier = Modifier,
+                modifier = Modifier.padding(8.dp).align(Alignment.CenterHorizontally),
                 onClick = {
                     enrollClicked()
                 }
@@ -236,19 +252,16 @@ fun LoginPage(
 
 @Composable
 fun EnrollBiometricButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(Modifier.fillMaxSize()) {
-        Button(
-            modifier = modifier.align(Alignment.Center),
-            colors = ButtonDefaults.buttonColors().copy(containerColor = Color.Cyan), onClick = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    onClick()
-                }
-            }) {
-            Text(
-                text = "Enroll Biometric",
-                color = Color.Black
-            )
-        }
+    Button(
+        modifier = modifier, onClick = {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                onClick()
+            }
+        }) {
+        Text(
+            text = "Enroll Biometric",
+            color = MaterialTheme.colorScheme.onPrimary
+        )
     }
 }
 
