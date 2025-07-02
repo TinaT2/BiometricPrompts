@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.view.WindowInsets
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -18,26 +19,55 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import com.example.biometricpropmpts.ui.theme.BiometricPropmptsTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -64,9 +94,14 @@ class MainActivity : FragmentActivity() {
     @RequiresApi(Build.VERSION_CODES.R)
     @Composable
     private fun EnrollBiometric() {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+        Scaffold( modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    listOf(Color(0xFFA87FFB), Color(0xFF7B42F6))
+                )
+            ), containerColor = Color.Transparent) { innerPadding ->
             val viewModel: MainViewModel by viewModels()
-            val uiState = viewModel.uiState.collectAsState()
 
             enrollLauncher =
                 rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -77,16 +112,15 @@ class MainActivity : FragmentActivity() {
                     }
                 }
 
-            LoginPage(
-                uiState.value,
-                innerPadding,
-                updateUIState = viewModel::updateUiState,
-                enrollClicked = {
+            StylishLoginScreen(
+                modifier = Modifier.padding(innerPadding),
+                viewModel = viewModel,
+                onEnrollClick = {
                     checkBiometricAvailability(onSuccessful = {
                         viewModel.encrypt(::authenticate)
                     })
                 },
-                decryptClicked = {
+                onShowDecryptionClick = {
                     checkBiometricAvailability(onSuccessful = {
                         viewModel.decrypt(::authenticate)
                     })
@@ -182,101 +216,199 @@ class MainActivity : FragmentActivity() {
     }
 }
 
-
 @Composable
-fun LoginPage(
-    uiState: LoginUIState,
-    innerPadding: PaddingValues,
-    updateUIState: KFunction1<LoginUIState.() -> LoginUIState, Unit>,
-    enrollClicked: () -> Unit,
-    decryptClicked: () -> Unit = {}
+fun StylishLoginScreen(
+    modifier: Modifier = Modifier,
+    viewModel: MainViewModel,
+    onEnrollClick: () -> Unit,
+    onShowDecryptionClick: () -> Unit
 ) {
-
-    val gradientBrush = Brush.verticalGradient(
-        colors = listOf(
-            MaterialTheme.colorScheme.primary,
-            MaterialTheme.colorScheme.inversePrimary,
-            MaterialTheme.colorScheme.primary
-        )
-    )
+    val uiState = viewModel.uiState.collectAsState()
+    Log.d("StylishLoginScreen: ","Recompose")
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(brush = gradientBrush)
-            .padding(innerPadding)
+        modifier = modifier
+            .fillMaxSize().padding(16.dp),
+        contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
-                .wrapContentSize(Alignment.Center)
-                .align(Alignment.Center)
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 400.dp)
+                .background(
+                    color = Color.White.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            OutlinedTextField(
-                label = {
-                    Text(stringResource(R.string.username))
-                },
-                value = uiState.username,
-                modifier = Modifier.padding(8.dp),
-                onValueChange = {
-                    updateUIState {
-                        copy(username = it)
-                    }
-                }
-            )
-            OutlinedTextField(
-                label = {
-                    Text(stringResource(R.string.password))
-                },
-                value = uiState.password,
-                modifier = Modifier.padding(8.dp),
-                onValueChange = {
-                    updateUIState {
-                        copy(password = it)
-                    }
-                }
+            Text(
+                text = "Welcome Back",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                modifier = Modifier.padding(bottom = 24.dp)
             )
 
-            EnrollBiometricButton(
-                text = "Encrypt Store",
-                modifier = Modifier
-                    .padding(8.dp)
-                    .align(Alignment.CenterHorizontally),
-                onClick = {
-                    enrollClicked()
-                }
+            // Username field
+            TextFieldWithIcon(
+                label = "Username",
+                value = uiState.value.username,
+                onValueChange = { viewModel.updateUiState { copy(username = it) } },
+                icon = Icons.Default.Person,
+                placeholder = "Enter your username"
             )
 
-            EnrollBiometricButton(
-                "Decrypt Pass",
-                modifier = Modifier
-                    .padding(8.dp)
-                    .align(Alignment.CenterHorizontally),
-                onClick = {
-                    decryptClicked()
-                }
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Password field
+            TextFieldWithIcon(
+                label = "Password",
+                value = uiState.value.password,
+                onValueChange = { viewModel.updateUiState { copy(password = it) } },
+                icon = Icons.Default.Lock,
+                placeholder = "Enter your password",
+                isPassword = true
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            StyledButton(
+                text = "Enroll Biometric",
+                painterId = R.drawable.fingerprint_24dp,
+                colorId = 0xFF7c3aed,
+                onEnrollClick
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            StyledButton(
+                text = "Decrypt Biometric",
+                painterId = R.drawable.enhanced_encryption_24dp,
+                colorId = 0xFF84cc16,
+                onShowDecryptionClick,
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            DecryptedPassword(uiState = uiState.value)
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = uiState.decryptedPassword,
-                modifier = Modifier
-                    .padding(8.dp)
-                    .align(Alignment.CenterHorizontally),
-                color = MaterialTheme.colorScheme.onPrimary
+                text = "By continuing, you agree to our Terms of Service.",
+                color = Color(0xFFCCCCCC),
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(top = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Forgot password?",
+                fontSize = 14.sp,
+                color = Color(0xFFE0CFFF),
+                modifier = Modifier.clickable { /* TODO: Handle click */ },
+                textDecoration = TextDecoration.Underline
             )
         }
     }
 }
 
 @Composable
-fun EnrollBiometricButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun DecryptedPassword(uiState: LoginUIState) {
+    Text(
+        text = "Decrypted Password:",
+        color = Color(0xFFFFFFFF),
+        fontSize = 14.sp,
+        textAlign = TextAlign.Center
+    )
+
+    uiState.decryptedPassword.apply {
+        if (this.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = this,
+                color = Color(0xFFFFFFFF),
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+
+}
+
+@Composable
+private fun StyledButton(text: String, painterId: Int, colorId: Long, onClick: () -> Unit) {
     Button(
-        modifier = modifier, onClick = {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                onClick()
-            }
-        }) {
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(colorId),
+            contentColor = Color.White
+        ),
+        shape = RoundedCornerShape(20),
+        elevation = ButtonDefaults.elevatedButtonElevation()
+
+    ) {
+        Icon(
+            painter = painterResource(painterId),
+            contentDescription = "Decrypt",
+            modifier = Modifier.padding(end = 8.dp)
+        )
+        Text(text = text, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+fun TextFieldWithIcon(
+    label: String,
+    value:TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    icon: ImageVector,
+    placeholder: String,
+    isPassword: Boolean = false
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = text,
-            color = MaterialTheme.colorScheme.onPrimary
+            text = label,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            leadingIcon = {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = Color.LightGray
+                )
+            },
+            placeholder = {
+                Text(text = placeholder, color = Color.LightGray)
+            },
+            singleLine = true,
+            visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(10.dp)),
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedBorderColor = Color.Transparent,
+                focusedBorderColor = Color(0xFFB693FD),
+                cursorColor = Color.White,
+                focusedLabelColor = Color.White
+            ),
+            textStyle = TextStyle(color = Color.White, fontSize = 14.sp)
         )
     }
 }
@@ -285,10 +417,11 @@ fun EnrollBiometricButton(text: String, modifier: Modifier = Modifier, onClick: 
 @Preview(showBackground = true)
 @Composable
 fun LoginPagePreview() {
-    LoginPage(
-        uiState = LoginUIState(),
-        innerPadding = PaddingValues(),
-        updateUIState = ::print,
-        enrollClicked = {}
-    )
+//    StylishLoginScreen(
+//        modifier = Modifier,
+//        uiState = LoginUIState(),
+//        updateUIState = ::print,
+//        onEnrollClick = { /* Handle biometric enroll */ },
+//        onShowDecryptionClick = {}
+//    )
 }
