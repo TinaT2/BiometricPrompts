@@ -18,25 +18,51 @@ import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.example.biometricpropmpts.ui.theme.BiometricPropmptsTheme
@@ -281,14 +307,183 @@ fun EnrollBiometricButton(text: String, modifier: Modifier = Modifier, onClick: 
     }
 }
 
+@Composable
+fun StylishLoginScreen(
+    username: String,
+    password: String,
+    onUsernameChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onEnrollClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    listOf(Color(0xFFA87FFB), Color(0xFF7B42F6))
+                )
+            )
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 400.dp)
+                .background(
+                    color = Color.White.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Welcome Back",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
+
+            // Username field
+            TextFieldWithIcon(
+                label = "Username",
+                value = username,
+                onValueChange = onUsernameChange,
+                icon = Icons.Default.Person,
+                placeholder = "Enter your username"
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Password field
+            TextFieldWithIcon(
+                label = "Password",
+                value = password,
+                onValueChange = onPasswordChange,
+                icon = Icons.Default.Lock,
+                placeholder = "Enter your password",
+                isPassword = true
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Enroll Button
+            Button(
+                onClick = onEnrollClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF7B42F6),
+                    contentColor = Color.White
+                ),
+                elevation = ButtonDefaults.elevatedButtonElevation()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = "Biometric",
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Text(text = "Enroll Biometric", fontWeight = FontWeight.Medium)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "By continuing, you agree to our Terms of Service.",
+                color = Color(0xFFCCCCCC),
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center
+            )
+
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(top = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Forgot password?",
+                fontSize = 14.sp,
+                color = Color(0xFFE0CFFF),
+                modifier = Modifier.clickable { /* TODO: Handle click */ },
+                textDecoration = TextDecoration.Underline
+            )
+        }
+    }
+}
+
+@Composable
+fun TextFieldWithIcon(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    icon: ImageVector,
+    placeholder: String,
+    isPassword: Boolean = false
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            leadingIcon = {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = Color.LightGray
+                )
+            },
+            placeholder = {
+                Text(text = placeholder, color = Color.LightGray)
+            },
+            singleLine = true,
+            visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(10.dp)),
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedBorderColor = Color.Transparent,
+                focusedBorderColor = Color(0xFFB693FD),
+                cursorColor = Color.White,
+                focusedLabelColor = Color.White
+            ),
+            textStyle = TextStyle(color = Color.White, fontSize = 14.sp)
+        )
+    }
+}
+
+
 
 @Preview(showBackground = true)
 @Composable
 fun LoginPagePreview() {
-    LoginPage(
-        uiState = LoginUIState(),
-        innerPadding = PaddingValues(),
-        updateUIState = ::print,
-        enrollClicked = {}
-    )
+//    LoginPage(
+//        uiState = LoginUIState(),
+//        innerPadding = PaddingValues(),
+//        updateUIState = ::print,
+//        enrollClicked = {}
+//    )
+
+        var username by remember { mutableStateOf("asdf") }
+        var password by remember { mutableStateOf("123") }
+
+        StylishLoginScreen(
+            username = username,
+            password = password,
+            onUsernameChange = { username = it },
+            onPasswordChange = { password = it },
+            onEnrollClick = { /* Handle biometric enroll */ }
+        )
+
 }
