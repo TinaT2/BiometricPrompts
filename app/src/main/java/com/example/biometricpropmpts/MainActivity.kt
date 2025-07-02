@@ -84,26 +84,10 @@ class MainActivity : FragmentActivity() {
                 updateUIState = viewModel::updateUiState,
                 enrollClicked = {
                     checkBiometricAvailability(onSuccessful = {
-                        if (viewModel.getSecretKey() == null)
-                            viewModel.generateSecretKey(keyGenParameterSpec = viewModel.keyGenParameterSpec)
-                        val cipher = viewModel.getCipher()
-                        viewModel.getSecretKey()?.let { secretKey ->
-                            cipher.init(Cipher.ENCRYPT_MODE, secretKey)
-                            authenticate(uiState.value, cipher) { encryptedPassword ->
-                                viewModel.login(
-                                    uiState.value.username.text.toByteArray(
-                                        Charset.defaultCharset()
-                                    ), encryptedPassword
-                                )
-                            }
-                        }
+                        viewModel.encrypt(::authenticate)
                     })
-
-
                 }
             )
-
-
         }
     }
 
