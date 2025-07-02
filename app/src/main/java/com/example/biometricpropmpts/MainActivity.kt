@@ -34,7 +34,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -86,6 +85,11 @@ class MainActivity : FragmentActivity() {
                     checkBiometricAvailability(onSuccessful = {
                         viewModel.encrypt(::authenticate)
                     })
+                },
+                decryptClicked = {
+                    checkBiometricAvailability(onSuccessful = {
+                        viewModel.decrypt(::authenticate)
+                    })
                 }
             )
         }
@@ -95,7 +99,8 @@ class MainActivity : FragmentActivity() {
     private fun authenticate(
         uiState: LoginUIState,
         cipher: Cipher,
-        onSucceed: (encryptedPassword: ByteArray) -> Unit
+        onSucceedEncrypt: ((encryptedPassword: ByteArray) -> Unit)? = null,
+        onSucceedDecrypt: ((decryptedPassword: BiometricPrompt.AuthenticationResult) -> Unit)? = null
     ) {
         val executor = ContextCompat.getMainExecutor(this)
         val biometricPrompt = BiometricPrompt(
@@ -111,22 +116,27 @@ class MainActivity : FragmentActivity() {
 
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
-                    val encryptedPassword: ByteArray? =
-                        result.cryptoObject?.cipher?.doFinal(
-                            uiState.password.text.toByteArray(
-                                Charset.defaultCharset()
+                    onSucceedEncrypt?.let {
+                        val encryptedPassword: ByteArray? =
+                            result.cryptoObject?.cipher?.doFinal(
+                                uiState.password.text.toByteArray(
+                                    Charset.defaultCharset()
+                                )
                             )
+
+                        Toast.makeText(
+                            applicationContext,
+                            "Authentication Succeed",
+                            Toast.LENGTH_SHORT
                         )
+                            .show()
 
-                    Toast.makeText(
-                        applicationContext,
-                        "Authentication Succeed",
-                        Toast.LENGTH_SHORT
-                    )
-                        .show()
-
-                    if (encryptedPassword != null)
-                        onSucceed(encryptedPassword)
+                        if (encryptedPassword != null)
+                            onSucceedEncrypt(encryptedPassword)
+                    }
+                    onSucceedDecrypt?.let {
+                        onSucceedDecrypt(result)
+                    }
                 }
             })
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
@@ -178,7 +188,8 @@ fun LoginPage(
     uiState: LoginUIState,
     innerPadding: PaddingValues,
     updateUIState: KFunction1<LoginUIState.() -> LoginUIState, Unit>,
-    enrollClicked: () -> Unit
+    enrollClicked: () -> Unit,
+    decryptClicked: () -> Unit = {}
 ) {
 
     val gradientBrush = Brush.verticalGradient(
@@ -225,17 +236,38 @@ fun LoginPage(
             )
 
             EnrollBiometricButton(
-                modifier = Modifier.padding(8.dp).align(Alignment.CenterHorizontally),
+                text = "Encrypt Store",
+                modifier = Modifier
+                    .padding(8.dp)
+                    .align(Alignment.CenterHorizontally),
                 onClick = {
                     enrollClicked()
                 }
+            )
+
+            EnrollBiometricButton(
+                "Decrypt Pass",
+                modifier = Modifier
+                    .padding(8.dp)
+                    .align(Alignment.CenterHorizontally),
+                onClick = {
+                    decryptClicked()
+                }
+            )
+
+            Text(
+                text = uiState.decryptedPassword,
+                modifier = Modifier
+                    .padding(8.dp)
+                    .align(Alignment.CenterHorizontally),
+                color = MaterialTheme.colorScheme.onPrimary
             )
         }
     }
 }
 
 @Composable
-fun EnrollBiometricButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun EnrollBiometricButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Button(
         modifier = modifier, onClick = {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -243,7 +275,7 @@ fun EnrollBiometricButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
             }
         }) {
         Text(
-            text = "Enroll Biometric",
+            text = text,
             color = MaterialTheme.colorScheme.onPrimary
         )
     }

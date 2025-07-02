@@ -21,9 +21,9 @@ class UserPreferencesRepository @Inject constructor(private val userPreferencesS
             }
         }
 
-    suspend fun updateUserName(username: ByteString,password: ByteString) {
+    suspend fun updateUserPreference(username: ByteString, password: ByteString, iv: ByteString) {
         userPreferencesStore.updateData { preferences ->
-            preferences.toBuilder().setUsername(username).setPassword(password).build()
+            preferences.toBuilder().setUsername(username).setPassword(password).setIv(iv).build()
         }
     }
 
