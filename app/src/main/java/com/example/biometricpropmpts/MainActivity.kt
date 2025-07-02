@@ -1,5 +1,7 @@
 package com.example.biometricpropmpts
 
+import android.app.KeyguardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -48,9 +50,9 @@ import kotlin.reflect.KFunction1
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
     private lateinit var enrollLauncher: ActivityResultLauncher<Intent>
+    private lateinit var keyguardLauncher: ActivityResultLauncher<Intent>
     val TAG = "MyBiometricMain"
 
-    @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -61,7 +63,6 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.R)
     @Composable
     private fun EnrollBiometric() {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -72,6 +73,18 @@ class MainActivity : FragmentActivity() {
                 rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
                     if (result.resultCode == RESULT_OK) {
                         Toast.makeText(this, "Biometric enrolled!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this, "Enrollment canceled.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+            keyguardLauncher =
+                rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                    Log.i("MY_APP_TAG", "keyguardLauncher result: ${result.resultCode}")
+                    if (result.resultCode == RESULT_OK) {
+                        Toast.makeText(this, "keyguard enrolled!", Toast.LENGTH_SHORT).show()
+                        viewModel.encrypt(::authenticate)
+
                     } else {
                         Toast.makeText(this, "Enrollment canceled.", Toast.LENGTH_SHORT).show()
                     }
@@ -102,34 +115,24 @@ class MainActivity : FragmentActivity() {
         onSucceedEncrypt: ((encryptedPassword: ByteArray) -> Unit)? = null,
         onSucceedDecrypt: ((decryptedPassword: BiometricPrompt.AuthenticationResult) -> Unit)? = null
     ) {
+        Log.i("MY_APP_TAG", "authenticate cipher: $cipher")
+
         val executor = ContextCompat.getMainExecutor(this)
         val biometricPrompt = BiometricPrompt(
             this, executor,
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
-                    Toast.makeText(
-                        applicationContext,
-                        "Authentication error: $errString", Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(applicationContext, "Authentication error: $errString", Toast.LENGTH_SHORT).show()
                 }
 
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
                     onSucceedEncrypt?.let {
                         val encryptedPassword: ByteArray? =
-                            result.cryptoObject?.cipher?.doFinal(
-                                uiState.password.text.toByteArray(
-                                    Charset.defaultCharset()
-                                )
-                            )
+                            result.cryptoObject?.cipher?.doFinal(uiState.password.text.toByteArray(Charset.defaultCharset()))
 
-                        Toast.makeText(
-                            applicationContext,
-                            "Authentication Succeed",
-                            Toast.LENGTH_SHORT
-                        )
-                            .show()
+                        Toast.makeText(applicationContext, "Authentication Succeed", Toast.LENGTH_SHORT).show()
 
                         if (encryptedPassword != null)
                             onSucceedEncrypt(encryptedPassword)
@@ -139,23 +142,37 @@ class MainActivity : FragmentActivity() {
                     }
                 }
             })
+
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Biometric login for my app")
             .setSubtitle("Log in using your biometric credential")
-            .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
-            .build()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+            promptInfo.setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+
+        else
+            promptInfo.setNegativeButtonText("Cancel") // Mandatory for API < 30
+
 
         biometricPrompt.authenticate(
-            promptInfo,
+            promptInfo.build(),
             BiometricPrompt.CryptoObject(cipher)
         )
 
     }
 
-    @RequiresApi(Build.VERSION_CODES.R)
     fun checkBiometricAvailability(onSuccessful: () -> Unit) {
         val biometricManager = BiometricManager.from(this)
-        when (biometricManager.canAuthenticate(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)) {
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            biometricManager.canAuthenticate(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+        } else {
+            biometricManager.canAuthenticate() // ⚠️ Deprecated, but correct for API < 30
+        }
+
+        // todo Atine -> I have to check if the user do not use fingerPrint and use pattern/pin
+        Log.i("MY_APP_TAG", "checkBiometricAvailability canAuthenticate: $result")
+
+        when (result) {
             BiometricManager.BIOMETRIC_SUCCESS -> {
                 onSuccessful()
                 Log.d("MY_APP_TAG", "App can authenticate using biometrics.")
@@ -167,17 +184,49 @@ class MainActivity : FragmentActivity() {
             BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
                 Log.e("MY_APP_TAG", "Biometric features are currently unavailable.")
 
-            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
-                // Prompts the user to create credentials that your app accepts.
-                val enrollIntent = Intent(Settings.ACTION_BIOMETRIC_ENROLL).apply {
-                    putExtra(
-                        Settings.EXTRA_BIOMETRIC_AUTHENTICATORS_ALLOWED,
-                        BIOMETRIC_STRONG or DEVICE_CREDENTIAL
-                    )
-                }
-                enrollLauncher.launch(enrollIntent)
+            BiometricManager.BIOMETRIC_ERROR_UNSUPPORTED -> {
+                Log.e("MY_APP_TAG", "Biometric features are incompatible with the current Android version.")
+                showDeviceCredentialPrompt()
             }
 
+            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
+                // Prompts the user to create credentials that your app accepts.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val enrollIntent = Intent(Settings.ACTION_BIOMETRIC_ENROLL).apply {
+                        putExtra(
+                            Settings.EXTRA_BIOMETRIC_AUTHENTICATORS_ALLOWED,
+                            BIOMETRIC_STRONG or DEVICE_CREDENTIAL
+                        )
+                    }
+
+                    enrollLauncher.launch(enrollIntent)
+                } else {
+                    val enrollIntent = Intent(Settings.ACTION_SECURITY_SETTINGS)
+                    enrollLauncher.launch(enrollIntent)
+                }
+            }
+
+        }
+    }
+
+
+    @Suppress("DEPRECATION")
+    // KeyguardManager.createConfirmDeviceCredentialIntent(...) was deprecated in API 33 because Google now prefers BiometricPrompt, and
+    // there is no replacement for this on API 23–29
+    private fun showDeviceCredentialPrompt() {
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        val intent = keyguardManager.createConfirmDeviceCredentialIntent(
+            "Authentication Required",
+            "Use your screen lock to continue"
+        )
+
+        intent?.let {
+            keyguardLauncher.launch(it)
+        } ?: run {
+            // Device doesn't have secure lock screen
+            Log.e("MY_APP_TAG", "Device doesn't have secure lock screen")
+//            val enrollIntent = Intent(Settings.ACTION_SECURITY_SETTINGS)
+//            enrollLauncher.launch(enrollIntent)
         }
     }
 }
@@ -240,9 +289,7 @@ fun LoginPage(
                 modifier = Modifier
                     .padding(8.dp)
                     .align(Alignment.CenterHorizontally),
-                onClick = {
-                    enrollClicked()
-                }
+                onClick = enrollClicked
             )
 
             EnrollBiometricButton(
@@ -250,9 +297,7 @@ fun LoginPage(
                 modifier = Modifier
                     .padding(8.dp)
                     .align(Alignment.CenterHorizontally),
-                onClick = {
-                    decryptClicked()
-                }
+                onClick = decryptClicked
             )
 
             Text(
@@ -268,12 +313,7 @@ fun LoginPage(
 
 @Composable
 fun EnrollBiometricButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Button(
-        modifier = modifier, onClick = {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                onClick()
-            }
-        }) {
+    Button(modifier = modifier, onClick = onClick) {
         Text(
             text = text,
             color = MaterialTheme.colorScheme.onPrimary

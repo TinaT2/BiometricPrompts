@@ -42,19 +42,24 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
     val uiState: StateFlow<LoginUIState> = _uiState.asStateFlow()
     private val tag = "MainViewModel"
 
-    @RequiresApi(Build.VERSION_CODES.R)
-    private val keyGenParameterSpec = KeyGenParameterSpec.Builder(
-        KEY_ALIAS,
-        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-    ).setBlockModes(KeyProperties.BLOCK_MODE_CBC)
-        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
-        .setUserAuthenticationRequired(true)
-        .setInvalidatedByBiometricEnrollment(true)
-        .setUserAuthenticationParameters(
-            0,
-            KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL
-        )
-        .build()
+    private fun keyGenParameterSpec(): KeyGenParameterSpec =
+        KeyGenParameterSpec.Builder(
+            KEY_ALIAS,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        ).apply {
+            setBlockModes(KeyProperties.BLOCK_MODE_CBC)
+            setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+            setUserAuthenticationRequired(true)
+            setInvalidatedByBiometricEnrollment(true)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+                // 0 means require auth for every use, change if you want some timeout
+                setUserAuthenticationParameters(
+                    0,
+                    KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL
+                )
+
+        }.build()
 
     private fun generateSecretKey(keyGenParameterSpec: KeyGenParameterSpec) {
         val keyGenerator = KeyGenerator.getInstance(
@@ -94,15 +99,15 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
     @RequiresApi(Build.VERSION_CODES.R)
     fun encrypt(authenticate: (LoginUIState, Cipher, ((encryptedPassword: ByteArray) -> Unit)?, ((decryptedPassword: BiometricPrompt.AuthenticationResult) -> Unit)?) -> Unit) {
         if (getSecretKey() == null)
-            generateSecretKey(keyGenParameterSpec = keyGenParameterSpec)
+            generateSecretKey(keyGenParameterSpec = keyGenParameterSpec())
         val cipher = getCipher()
+        Log.i("MY_APP_TAG", "encrypt: ${getSecretKey()}")
         getSecretKey()?.let { secretKey ->
             cipher.init(Cipher.ENCRYPT_MODE, secretKey)
             authenticate(uiState.value, cipher, { encryptedPassword ->
                 login(
-                    uiState.value.username.text.toByteArray(
-                        Charset.defaultCharset()
-                    ), encryptedPassword,
+                    uiState.value.username.text.toByteArray(Charset.defaultCharset()),
+                    encryptedPassword,
                     cipher.iv
                 )
             }, null)
@@ -113,7 +118,7 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
     @RequiresApi(Build.VERSION_CODES.R)
     fun decrypt(authenticate: (LoginUIState, Cipher, ((encryptedPassword: ByteArray) -> Unit)?, ((decryptedPassword: BiometricPrompt.AuthenticationResult) -> Unit)?) -> Unit) {
         if (getSecretKey() == null)
-            generateSecretKey(keyGenParameterSpec)
+            generateSecretKey(keyGenParameterSpec())
         val cipher = getCipher()
         getSecretKey()?.let { secretKey ->
             viewModelScope.launch {
