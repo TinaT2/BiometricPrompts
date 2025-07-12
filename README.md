@@ -20,7 +20,7 @@ An Android application demonstrating secure **biometric authentication** using *
 
 ## 📷 Screens
 
-<img src="https://github.com/user-attachments/assets/5ce966f8-7118-409d-8fe5-816ef29f457d" alt="Preview" width="300"/>
+<img src="https://github.com/user-attachments/assets/b2c309de-0c09-4e5f-b8b1-d6afb7819606" alt="Preview" width="300"/>
 
 ## 📦 Setup
 
