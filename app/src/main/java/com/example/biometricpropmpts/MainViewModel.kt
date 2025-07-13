@@ -15,7 +15,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.nio.charset.Charset
@@ -119,7 +119,7 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
         getSecretKey()?.let { secretKey ->
             viewModelScope.launch {
                 try{
-                userPreferencesRepository.userPreferencesFlow.collectLatest { data: UserPreferences ->
+                val data = userPreferencesRepository.userPreferencesFlow.first()
                     cipher.init(Cipher.DECRYPT_MODE, secretKey, data.iv.toByteArray()?.let { GCMParameterSpec(128,it) })
                     authenticate(
                         uiState.value,
@@ -138,7 +138,7 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
 
 
                     }
-                }}catch (exception: Exception){
+                }catch (exception: Exception){
                     Log.d(tag, "Exception: $exception")
                 }
             }
