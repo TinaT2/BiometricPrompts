@@ -23,6 +23,7 @@ import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.IvParameterSpec
 import javax.inject.Inject
 
@@ -46,8 +47,8 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
     private val keyGenParameterSpec = KeyGenParameterSpec.Builder(
         KEY_ALIAS,
         KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-    ).setBlockModes(KeyProperties.BLOCK_MODE_CBC)
-        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_PKCS7)
+    ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
         .setUserAuthenticationRequired(true)
         .setInvalidatedByBiometricEnrollment(true)
         .setUserAuthenticationParameters(
@@ -71,8 +72,8 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
         return keyStore.getKey(KEY_ALIAS, pass.toCharArray()) as SecretKey?
     }
 
-    private fun getCipher(): Cipher {
-        return Cipher.getInstance("${KeyProperties.KEY_ALGORITHM_AES}/${KeyProperties.BLOCK_MODE_CBC}/${KeyProperties.ENCRYPTION_PADDING_PKCS7}")
+    fun getCipher(): Cipher {
+        return Cipher.getInstance("${KeyProperties.KEY_ALGORITHM_AES}/${KeyProperties.BLOCK_MODE_GCM}/${KeyProperties.ENCRYPTION_PADDING_NONE}")
     }
 
     private fun login(encryptedUsername: ByteArray, encryptedPassword: ByteArray, iv: ByteArray) {
@@ -119,7 +120,7 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
             viewModelScope.launch {
                 try{
                 userPreferencesRepository.userPreferencesFlow.collectLatest { data: UserPreferences ->
-                    cipher.init(Cipher.DECRYPT_MODE, secretKey, data.iv.toByteArray()?.let { IvParameterSpec(it) })
+                    cipher.init(Cipher.DECRYPT_MODE, secretKey, data.iv.toByteArray()?.let { GCMParameterSpec(128,it) })
                     authenticate(
                         uiState.value,
                         cipher,
