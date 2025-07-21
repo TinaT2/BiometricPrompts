@@ -42,7 +42,7 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
     private val KEY_PROVIDER = "AndroidKeyStore"
     private val KEY_ALIAS = "biometricSecretKey"
     private val pass = "ThisIsTheBioPass"
-    private val tag = "MainViewModel"
+    private val TAG = "MyBiometricApp"
     var isBiometricEnrolled = false
 
     private val _uiState = MutableStateFlow(LoginUIState())
@@ -119,7 +119,7 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
 
                 else -> {
                     updateFeedback(R.string.something_wrong)
-                    Log.e(tag, "Exception: $exception")
+                    Log.e(TAG, "Exception: $exception")
                     throw exception
                 }
             }
@@ -162,7 +162,7 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
                 )
             }
         } catch (exception: Exception) {
-            Log.e(tag, "Exception: $exception")
+            Log.e(TAG, "Encrypt Exception: $exception")
         }
     }
 
@@ -203,16 +203,20 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
                                         updateUiState { copy(decryptedPassword = decryptedString) }
                                     }
                             } catch (exception: Exception) {
-                                Log.e(tag, "Exception: $exception")
+                                Log.e(TAG, "Decrypt Exception Authenticate: $exception")
                             }
 
                         }
                     } ?: run {
-                        cipher.doFinal(decryptedPassword)?.let { decrypted ->
-                            val decryptedString = String(decrypted, Charset.defaultCharset())
-                            updateUiState {
-                                copy(decryptedPassword = decryptedString)
+                        try {
+                            cipher.doFinal(decryptedPassword)?.let { decrypted ->
+                                val decryptedString = String(decrypted, Charset.defaultCharset())
+                                updateUiState {
+                                    copy(decryptedPassword = decryptedString)
+                                }
                             }
+                        } catch (exception: Exception) {
+                            Log.e(TAG, "Decrypt Exception Run Block: $exception")
                         }
                     }
                 } catch (exception: Exception) {
@@ -229,7 +233,7 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
 
                         else -> {
                             updateFeedback(R.string.something_wrong)
-                            Log.e(tag, "Exception: $exception")
+                            Log.e(TAG, "Decrypt Exception: $exception")
                         }
                     }
                 }
@@ -245,10 +249,10 @@ class MainViewModel @Inject constructor(private val userPreferencesRepository: U
             if (keyStore.containsAlias(KEY_ALIAS))
                 keyStore.deleteEntry(KEY_ALIAS)
             else
-                Log.w(tag, "Key '$KEY_ALIAS' not found in Keystore.")
+                Log.w(TAG, "Key '$KEY_ALIAS' not found in Keystore.")
 
         } catch (e: Exception) {
-            Log.e(tag, "Failed to delete key '$KEY_ALIAS': ${e.message}")
+            Log.e(TAG, "Failed to delete key '$KEY_ALIAS': ${e.message}")
         }
     }
 

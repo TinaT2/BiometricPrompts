@@ -7,6 +7,6 @@
     <string name="succeed_authentication">Authentication Succeed</string>
     <string name="failed_authentication">Authentication error: %s</string>
     <string name="something_wrong">Something wend wrong, Please try again</string>
-    <string name="key_mismatch">The data cannot be decrypted with a different key; please re-enroll</string>
+    <string name="key_mismatch">The data cannot be decrypted with a different key; please re-encrypt</string>
     <string name="no_lockScreen">Device doesn\'t have secure lock screen</string>
 </resources>

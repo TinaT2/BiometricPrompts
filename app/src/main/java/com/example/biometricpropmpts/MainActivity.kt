@@ -71,8 +71,9 @@ import javax.crypto.Cipher
 class MainActivity : FragmentActivity() {
     private lateinit var enrollLauncher: ActivityResultLauncher<Intent>
     private lateinit var keyguardLauncher: ActivityResultLauncher<Intent>
-    val TAG = "MyBiometricMain"
-    var isEnrollClicked = false
+    private val TAG = "MyBiometricApp"
+    private var isEnrollClicked = false
+    private val viewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,6 +83,11 @@ class MainActivity : FragmentActivity() {
                 EnrollBiometric()
             }
         }
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        viewModel.isBiometricEnrolled = isBiometricEnrolled()
     }
 
     private fun isBiometricEnrolled(): Boolean {
@@ -101,20 +107,14 @@ class MainActivity : FragmentActivity() {
             containerColor = Color.Transparent
         ) { innerPadding ->
 
-            val viewModel: MainViewModel by viewModels()
-            viewModel.isBiometricEnrolled = isBiometricEnrolled()
-
-            enrollLauncher =
-                rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            enrollLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
                     if (result.resultCode == RESULT_OK)
                         showToastMessage(this, R.string.biometric_enrolled)
                     else
                         showToastMessage(this, R.string.enrollment_canceled)
-
                 }
 
-            keyguardLauncher =
-                rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            keyguardLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
                     if (result.resultCode == RESULT_OK) {
                         if (isEnrollClicked) {
                             viewModel.encrypt(null)
@@ -208,18 +208,18 @@ class MainActivity : FragmentActivity() {
 
         when (result) {
             BiometricManager.BIOMETRIC_SUCCESS -> {
-                Log.d("MY_APP_TAG", "App can authenticate using biometrics.")
+                Log.d(TAG, "App can authenticate using biometrics.")
                 onSuccessful()
             }
 
             BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
-                Log.e("MY_APP_TAG", "No biometric features available on this device.")
+                Log.e(TAG, "No biometric features available on this device.")
 
             BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
-                Log.e("MY_APP_TAG", "Biometric features are currently unavailable.")
+                Log.e(TAG, "Biometric features are currently unavailable.")
 
             BiometricManager.BIOMETRIC_ERROR_UNSUPPORTED -> {
-                Log.e("MY_APP_TAG", "Biometric features are incompatible with the current Android version.")
+                Log.e(TAG, "Biometric features are incompatible with the current Android version.")
                 showDeviceCredentialPrompt()
             }
 
@@ -254,8 +254,8 @@ class MainActivity : FragmentActivity() {
             keyguardLauncher.launch(it)
         } ?: run {
             // Device doesn't have secure lock screen
-            showToastMessage(this@MainActivity, R.string.no_lockScreen)
-            Log.e("MY_APP_TAG", "Device doesn't have secure lock screen")
+            startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+            Log.e(TAG, "Device doesn't have secure lock screen")
         }
     }
 }
