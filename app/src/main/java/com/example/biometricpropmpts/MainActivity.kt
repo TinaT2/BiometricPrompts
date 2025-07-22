@@ -1,19 +1,20 @@
 package com.example.biometricpropmpts
 
+import android.app.KeyguardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
-import android.view.WindowInsets
 import android.widget.Toast
+import com.example.biometricpropmpts.R
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.annotation.RequiresApi
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -22,15 +23,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
@@ -38,24 +36,20 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -67,20 +61,20 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import com.example.biometricpropmpts.ui.theme.BiometricPropmptsTheme
 import dagger.hilt.android.AndroidEntryPoint
 import java.nio.charset.Charset
 import javax.crypto.Cipher
-import kotlin.reflect.KFunction1
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
     private lateinit var enrollLauncher: ActivityResultLauncher<Intent>
-    val TAG = "MyBiometricMain"
+    private lateinit var keyguardLauncher: ActivityResultLauncher<Intent>
+    private val TAG = "MyBiometricApp"
+    private var isEnrollClicked = false
+    private val viewModel: MainViewModel by viewModels()
 
-    @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -91,39 +85,60 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.R)
+    override fun onRestart() {
+        super.onRestart()
+        viewModel.isBiometricEnrolled = isBiometricEnrolled()
+    }
+
+    private fun isBiometricEnrolled(): Boolean {
+        val biometricManager = BiometricManager.from(this)
+        val canAuthenticate = biometricManager.canAuthenticate(BIOMETRIC_STRONG)
+        return  canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS
+    }
+
     @Composable
     private fun EnrollBiometric() {
-        Scaffold( modifier = Modifier
-            .fillMaxSize()
-            .background(
-                brush = Brush.verticalGradient(
-                    listOf(Color(0xFFA87FFB), Color(0xFF7B42F6))
-                )
-            ), containerColor = Color.Transparent) { innerPadding ->
-            val viewModel: MainViewModel by viewModels()
+        Scaffold(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(listOf(Color(0xFFA87FFB), Color(0xFF7B42F6)))
+                ),
+            containerColor = Color.Transparent
+        ) { innerPadding ->
 
-            enrollLauncher =
-                rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            enrollLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                    if (result.resultCode == RESULT_OK)
+                        showToastMessage(this, R.string.biometric_enrolled)
+                    else
+                        showToastMessage(this, R.string.enrollment_canceled)
+                }
+
+            keyguardLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
                     if (result.resultCode == RESULT_OK) {
-                        Toast.makeText(this, "Biometric enrolled!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(this, "Enrollment canceled.", Toast.LENGTH_SHORT).show()
-                    }
+                        if (isEnrollClicked) {
+                            viewModel.encrypt(null)
+                            isEnrollClicked = false
+                        } else
+                            viewModel.decrypt(null)
+
+                    } else
+                        showToastMessage(this, R.string.enrollment_canceled)
                 }
 
             StylishLoginScreen(
                 modifier = Modifier.padding(innerPadding),
                 viewModel = viewModel,
                 onEnrollClick = {
-                    checkBiometricAvailability(onSuccessful = {
-                        viewModel.encrypt(::authenticate)
-                    })
+                    isEnrollClicked = true
+                    checkBiometricAvailability(
+                        onSuccessful = { viewModel.encrypt(::authenticate) }
+                    )
                 },
                 onShowDecryptionClick = {
-                    checkBiometricAvailability(onSuccessful = {
-                        viewModel.decrypt(::authenticate)
-                    })
+                    checkBiometricAvailability(
+                        onSuccessful = { viewModel.decrypt(::authenticate) }
+                    )
                 }
             )
         }
@@ -140,96 +155,136 @@ class MainActivity : FragmentActivity() {
         val biometricPrompt = BiometricPrompt(
             this, executor,
             object : BiometricPrompt.AuthenticationCallback() {
+
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
-                    Toast.makeText(
-                        applicationContext,
-                        "Authentication error: $errString", Toast.LENGTH_SHORT
-                    ).show()
+                    showToastMessage(this@MainActivity, R.string.failed_authentication, errString.toString())
                 }
 
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
                     onSucceedEncrypt?.let {
                         val encryptedPassword: ByteArray? =
-                            result.cryptoObject?.cipher?.doFinal(
-                                uiState.password.text.toByteArray(
-                                    Charset.defaultCharset()
-                                )
-                            )
+                            result.cryptoObject?.cipher?.doFinal(uiState.password.text.toByteArray(Charset.defaultCharset()))
 
-                        Toast.makeText(
-                            applicationContext,
-                            "Authentication Succeed",
-                            Toast.LENGTH_SHORT
-                        )
-                            .show()
+                        showToastMessage(this@MainActivity, R.string.succeed_authentication)
 
                         if (encryptedPassword != null)
                             onSucceedEncrypt(encryptedPassword)
                     }
-                    onSucceedDecrypt?.let {
-                        onSucceedDecrypt(result)
-                    }
+
+                    onSucceedDecrypt?.let { onSucceedDecrypt(result) }
                 }
-            })
+            }
+
+        )
+
+
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Biometric login for my app")
             .setSubtitle("Log in using your biometric credential")
-            .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
-            .build()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+            promptInfo.setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+
+        else
+            promptInfo.setNegativeButtonText("Cancel") // Mandatory for API < 30
+
 
         biometricPrompt.authenticate(
-            promptInfo,
+            promptInfo.build(),
             BiometricPrompt.CryptoObject(cipher)
         )
 
     }
 
-    @RequiresApi(Build.VERSION_CODES.R)
-    fun checkBiometricAvailability(onSuccessful: () -> Unit) {
+    private fun checkBiometricAvailability(onSuccessful: () -> Unit) {
         val biometricManager = BiometricManager.from(this)
-        when (biometricManager.canAuthenticate(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)) {
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+            biometricManager.canAuthenticate(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+        else
+            biometricManager.canAuthenticate() // ⚠️ Deprecated, but correct for API < 30
+
+
+        when (result) {
             BiometricManager.BIOMETRIC_SUCCESS -> {
+                Log.d(TAG, "App can authenticate using biometrics.")
                 onSuccessful()
-                Log.d("MY_APP_TAG", "App can authenticate using biometrics.")
             }
 
             BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
-                Log.e("MY_APP_TAG", "No biometric features available on this device.")
+                Log.e(TAG, "No biometric features available on this device.")
 
             BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
-                Log.e("MY_APP_TAG", "Biometric features are currently unavailable.")
+                Log.e(TAG, "Biometric features are currently unavailable.")
+
+            BiometricManager.BIOMETRIC_ERROR_UNSUPPORTED -> {
+                Log.e(TAG, "Biometric features are incompatible with the current Android version.")
+                showDeviceCredentialPrompt()
+            }
 
             BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
                 // Prompts the user to create credentials that your app accepts.
-                val enrollIntent = Intent(Settings.ACTION_BIOMETRIC_ENROLL).apply {
-                    putExtra(
-                        Settings.EXTRA_BIOMETRIC_AUTHENTICATORS_ALLOWED,
-                        BIOMETRIC_STRONG or DEVICE_CREDENTIAL
-                    )
-                }
-                enrollLauncher.launch(enrollIntent)
-            }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val enrollIntent = Intent(Settings.ACTION_BIOMETRIC_ENROLL).apply {
+                        putExtra(
+                            Settings.EXTRA_BIOMETRIC_AUTHENTICATORS_ALLOWED,
+                            BIOMETRIC_STRONG or DEVICE_CREDENTIAL
+                        )
+                    }
 
+                    enrollLauncher.launch(enrollIntent)
+                } else
+                    showDeviceCredentialPrompt()
+            }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    // KeyguardManager.createConfirmDeviceCredentialIntent(...) was deprecated in API 33 because Google now prefers BiometricPrompt, and
+    // there is no replacement for this on API 23–29
+    private fun showDeviceCredentialPrompt() {
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        val intent = keyguardManager.createConfirmDeviceCredentialIntent(
+            "Authentication Required",
+            "Use your screen lock to continue"
+        )
+
+        intent?.let {
+            keyguardLauncher.launch(it)
+        } ?: run {
+            // Device doesn't have secure lock screen
+            startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+            Log.e(TAG, "Device doesn't have secure lock screen")
         }
     }
 }
+
 
 @Composable
 fun StylishLoginScreen(
     modifier: Modifier = Modifier,
     viewModel: MainViewModel,
     onEnrollClick: () -> Unit,
-    onShowDecryptionClick: () -> Unit
+    onShowDecryptionClick: () -> Unit,
 ) {
     val uiState = viewModel.uiState.collectAsState()
-    Log.d("StylishLoginScreen: ","Recompose")
+    val context = LocalContext.current
+
+    Log.d("StylishLoginScreen: ", "Recompose")
     Box(
         modifier = modifier
-            .fillMaxSize().padding(16.dp),
+            .fillMaxSize()
+            .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
+
+        LaunchedEffect(Unit) {
+            viewModel.feedback.collect { messageResId ->
+                showToastMessage(context, messageResId)
+            }
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -320,7 +375,7 @@ fun StylishLoginScreen(
 }
 
 @Composable
-private fun DecryptedPassword(uiState: LoginUIState) {
+fun DecryptedPassword(uiState: LoginUIState) {
     Text(
         text = "Decrypted Password:",
         color = Color(0xFFFFFFFF),
@@ -344,7 +399,7 @@ private fun DecryptedPassword(uiState: LoginUIState) {
 }
 
 @Composable
-private fun StyledButton(text: String, painterId: Int, colorId: Long, onClick: () -> Unit) {
+fun StyledButton(text: String, painterId: Int, colorId: Long, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         modifier = Modifier
@@ -413,6 +468,9 @@ fun TextFieldWithIcon(
     }
 }
 
+private fun showToastMessage(context: Context, messageResId: Int, extraMessage: String? = null) {
+    Toast.makeText(context, context.getString(messageResId, extraMessage), Toast.LENGTH_SHORT).show()
+}
 
 @Preview(showBackground = true)
 @Composable
